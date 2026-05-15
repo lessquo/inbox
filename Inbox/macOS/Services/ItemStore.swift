@@ -80,6 +80,7 @@ final class ItemStore {
             let result = try await github.fetch()
             if let newItems = result.items {
                 items = newItems.sorted { $0.updatedAt > $1.updatedAt }
+                Task { await NotificationService.shared.notify(items: items) }
             }
             if !silent { errorMessage = nil }
             return result.nextPollAfter

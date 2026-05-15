@@ -18,5 +18,13 @@ struct InboxApp: App {
             SettingsView()
                 .environment(store)
         }
+
+        MenuBarExtra {
+            MenuBarView()
+                .environment(store)
+        } label: {
+            Image(systemName: store.items.isEmpty ? "tray" : "tray.full")
+        }
+        .menuBarExtraStyle(.window)
     }
 }
