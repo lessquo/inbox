@@ -29,9 +29,7 @@ struct ContentView: View {
                     }
                 }
         }
-        .task {
-            if !store.githubToken.isEmpty { await store.refresh() }
-        }
+        .onAppear { store.startPolling() }
     }
 
     @ViewBuilder

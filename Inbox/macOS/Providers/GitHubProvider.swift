@@ -2,13 +2,14 @@ import Foundation
 
 /// GitHub notifications provider. Reads its token from the Keychain on each call,
 /// so the credential never needs to be passed around at the API surface.
-struct GitHubProvider: InboxProvider {
+struct GitHubProvider: ItemProvider {
     static let tokenKey = "github_token"
 
     let id = "github"
     let displayName = "GitHub"
 
     private let session: URLSession
+    private let conditional = ConditionalState()
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -18,20 +19,38 @@ struct GitHubProvider: InboxProvider {
         (KeychainStore.get(Self.tokenKey) ?? "").isEmpty == false
     }
 
-    func fetch() async throws -> [Item] {
+    func fetch() async throws -> FetchResult {
         let token = try requireToken()
         var req = URLRequest(url: URL(string: "https://api.github.com/notifications?all=false")!)
+        // We track Last-Modified ourselves; bypass URLSession's cache so a server 304
+        // surfaces as 304 instead of being silently replayed as a 200 from cache.
+        req.cachePolicy = .reloadIgnoringLocalCacheData
         applyHeaders(&req, token: token)
+        if let lm = await conditional.lastModified {
+            req.setValue(lm, forHTTPHeaderField: "If-Modified-Since")
+        }
 
         let (data, response) = try await session.data(for: req)
-        try Self.checkStatus(response, data: data)
+        guard let http = response as? HTTPURLResponse else {
+            throw ProviderError.httpError(status: -1, body: "")
+        }
+
+        let nextPoll = Self.parsePollInterval(http)
+        if http.statusCode == 304 {
+            return FetchResult(items: nil, nextPollAfter: nextPoll)
+        }
+        try Self.checkStatus(http, data: data)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
         let notifications = try decoder.decode([GHNotification].self, from: data)
 
-        return notifications.map { n in
+        if let lm = http.value(forHTTPHeaderField: "Last-Modified") {
+            await conditional.set(lm)
+        }
+
+        let items = notifications.map { n in
             Item(
                 id: "github:\(n.id)",
                 sourceId: id,
@@ -44,6 +63,7 @@ struct GitHubProvider: InboxProvider {
                 isRead: !n.unread
             )
         }
+        return FetchResult(items: items, nextPollAfter: nextPoll)
     }
 
     func markDone(_ item: Item) async throws {
@@ -67,6 +87,14 @@ struct GitHubProvider: InboxProvider {
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+    }
+
+    private static func parsePollInterval(_ http: HTTPURLResponse) -> TimeInterval {
+        if let raw = http.value(forHTTPHeaderField: "X-Poll-Interval"),
+           let seconds = TimeInterval(raw), seconds > 0 {
+            return seconds
+        }
+        return 60
     }
 
     private static func checkStatus(_ response: URLResponse, data: Data) throws {
@@ -99,6 +127,11 @@ struct GitHubProvider: InboxProvider {
         }
         return URL(string: "https://github.com/\(owner)/\(repo)/\(suffix)")
     }
+}
+
+private actor ConditionalState {
+    var lastModified: String?
+    func set(_ value: String) { lastModified = value }
 }
 
 private struct GHNotification: Decodable {

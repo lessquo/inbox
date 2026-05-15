@@ -1,11 +1,19 @@
 import Foundation
 
-protocol InboxProvider: Sendable {
+struct FetchResult: Sendable {
+    /// `nil` means the server reported no change since the previous fetch (e.g. HTTP 304).
+    let items: [Item]?
+    /// Seconds the caller should wait before polling again. Providers should surface
+    /// any server-recommended cadence here (GitHub returns it as `X-Poll-Interval`).
+    let nextPollAfter: TimeInterval
+}
+
+protocol ItemProvider: Sendable {
     var id: String { get }
     var displayName: String { get }
     var isConfigured: Bool { get }
 
-    func fetch() async throws -> [Item]
+    func fetch() async throws -> FetchResult
     func markDone(_ item: Item) async throws
 }
 
