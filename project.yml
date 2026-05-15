@@ -1,0 +1,40 @@
+name: Inbox
+options:
+  bundleIdPrefix: com.lessquo
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "26.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+targets:
+  Inbox:
+    type: application
+    platform: macOS
+    configFiles:
+      Debug: Local.xcconfig
+      Release: Local.xcconfig
+    sources:
+      - path: Inbox/Shared
+      - path: Inbox/macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lessquo.inbox
+        PRODUCT_NAME: Inbox
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Inbox/macOS/Inbox.entitlements
+    entitlements:
+      path: Inbox/macOS/Inbox.entitlements
+      properties:
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)
