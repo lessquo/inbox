@@ -36,9 +36,9 @@ struct ContentView: View {
     private var content: some View {
         if store.githubToken.isEmpty {
             ContentUnavailableView(
-                "Add a GitHub token",
+                "Connect GitHub",
                 systemImage: "key",
-                description: Text("Open Settings (⌘,) and paste a personal access token with the `notifications` scope.")
+                description: Text("Open Settings (⌘,) and connect your GitHub account.")
             )
         } else if store.items.isEmpty {
             ContentUnavailableView(

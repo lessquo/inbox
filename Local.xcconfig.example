@@ -1,2 +1,6 @@
-// Copy to Local.xcconfig and set your Apple Developer team ID.
+// Copy to Local.xcconfig and fill in your own values.
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
+
+// Register an OAuth App at https://github.com/settings/developers
+// (Authorization callback URL can be anything — Device Flow doesn't use it.)
+GITHUB_OAUTH_CLIENT_ID = YOUR_CLIENT_ID

@@ -1,47 +1,70 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
     @Environment(ItemStore.self) private var store
-    @State private var draft: String = ""
-    @State private var justSaved = false
 
     var body: some View {
         Form {
             Section("GitHub") {
-                SecureField("Personal Access Token", text: $draft)
-                Text("Create a **classic** token with the `notifications` scope at [github.com/settings/tokens](https://github.com/settings/tokens). The Notifications API does not yet support fine-grained tokens.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack {
-                    Button("Save") {
-                        store.saveGitHubToken(draft)
-                        justSaved = true
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(draft == store.githubToken)
-
-                    Button("Clear", role: .destructive) {
-                        draft = ""
-                        store.saveGitHubToken("")
-                    }
-                    .disabled(store.githubToken.isEmpty && draft.isEmpty)
-
-                    Spacer()
-
-                    if !store.githubToken.isEmpty {
-                        Label(justSaved ? "Saved" : "Token set", systemImage: "checkmark.seal.fill")
-                            .foregroundStyle(.green)
-                            .font(.caption)
-                    }
+                if !store.isOAuthConfigured {
+                    Text("GitHub OAuth client ID is not configured. Register an OAuth App and set `GITHUB_OAUTH_CLIENT_ID` in `Local.xcconfig`.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else {
+                    content
                 }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 240)
-        .onAppear { draft = store.githubToken }
-        .onChange(of: store.githubToken) { _, new in
-            draft = new
-            justSaved = false
+        .frame(width: 520, height: 280)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch store.signInState {
+        case .idle:
+            if store.githubToken.isEmpty {
+                Button("Connect with GitHub") { store.beginGitHubSignIn() }
+                    .keyboardShortcut(.defaultAction)
+                Text("Opens GitHub in your browser to authorize Inbox to read notifications.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    Label("Connected", systemImage: "checkmark.seal.fill")
+                        .foregroundStyle(.green)
+                    Spacer()
+                    Button("Disconnect", role: .destructive) {
+                        store.saveGitHubToken("")
+                    }
+                }
+            }
+
+        case .awaitingUser(let code):
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Enter this code on GitHub:")
+                Text(code.userCode)
+                    .font(.system(.title, design: .monospaced))
+                    .textSelection(.enabled)
+                Text("Your browser was opened to \(code.verificationURI.absoluteString). The code is also on your clipboard.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Open Browser Again") {
+                        NSWorkspace.shared.open(code.verificationURI)
+                    }
+                    Button("Cancel", role: .cancel) {
+                        store.cancelGitHubSignIn()
+                    }
+                }
+            }
+
+        case .error(let msg):
+            VStack(alignment: .leading, spacing: 8) {
+                Text(msg).foregroundStyle(.red)
+                Button("Try Again") { store.beginGitHubSignIn() }
+            }
         }
     }
 }

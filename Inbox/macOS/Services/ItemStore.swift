@@ -1,18 +1,30 @@
+import AppKit
 import Foundation
 import Observation
+
+enum GitHubSignInState {
+    case idle
+    case awaitingUser(GitHubAuth.DeviceCode)
+    case error(String)
+}
 
 @Observable @MainActor
 final class ItemStore {
     var items: [Item] = []
     var isLoading = false
     var errorMessage: String?
+    var signInState: GitHubSignInState = .idle
     private(set) var githubToken: String
+    let isOAuthConfigured: Bool
 
     private let github = GitHubProvider()
+    private let auth = GitHubAuth()
     private var pollTask: Task<Void, Never>?
+    private var signInTask: Task<Void, Never>?
 
     init() {
         self.githubToken = KeychainStore.get(GitHubProvider.tokenKey) ?? ""
+        self.isOAuthConfigured = (Bundle.main.object(forInfoDictionaryKey: "GitHubOAuthClientID") as? String).map { !$0.isEmpty } ?? false
     }
 
     func saveGitHubToken(_ token: String) {
@@ -53,6 +65,36 @@ final class ItemStore {
             items = snapshot
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
+    }
+
+    func beginGitHubSignIn() {
+        cancelGitHubSignIn()
+        signInState = .idle
+        signInTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let code = try await self.auth.requestDeviceCode()
+                self.signInState = .awaitingUser(code)
+                NSWorkspace.shared.open(code.verificationURI)
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(code.userCode, forType: .string)
+
+                let token = try await self.auth.pollForToken(code)
+                self.saveGitHubToken(token)
+                self.signInState = .idle
+            } catch is CancellationError {
+                self.signInState = .idle
+            } catch {
+                let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self.signInState = .error(msg)
+            }
+        }
+    }
+
+    func cancelGitHubSignIn() {
+        signInTask?.cancel()
+        signInTask = nil
     }
 
     private func restartPolling() {
