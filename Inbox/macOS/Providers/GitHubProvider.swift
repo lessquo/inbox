@@ -106,10 +106,35 @@ struct GitHubProvider: ItemProvider {
     }
 
     // GitHub's notification subject.url is an *API* URL. Map common shapes to
-    // their web counterparts; otherwise fall back to the repo page.
+    // their web counterparts; otherwise fall back to the repo page. When the
+    // notification has a latest_comment_url, append the matching fragment so
+    // the link lands on the specific comment — matching github.com's redirect
+    // from the notifications page.
     private static func htmlURL(for n: GHNotification) -> URL? {
-        if let api = n.subject.url, let url = transformAPIURL(api) { return url }
-        return URL(string: n.repository.htmlUrl)
+        guard let api = n.subject.url, let base = transformAPIURL(api) else {
+            return URL(string: n.repository.htmlUrl)
+        }
+        if let commentAPI = n.subject.latestCommentUrl,
+           let fragment = commentFragment(commentAPI) {
+            return URL(string: base.absoluteString + "#" + fragment)
+        }
+        return base
+    }
+
+    private static func commentFragment(_ api: String) -> String? {
+        guard let url = URL(string: api) else { return nil }
+        let parts = url.path.split(separator: "/").map(String.init)
+        guard parts.count >= 5, parts[0] == "repos", let id = parts.last else { return nil }
+        switch parts[3] {
+        case "issues" where parts.count >= 6 && parts[4] == "comments":
+            return "issuecomment-\(id)"
+        case "pulls" where parts.count >= 6 && parts[4] == "comments":
+            return "discussion_r\(id)"
+        case "comments":
+            return "commitcomment-\(id)"
+        default:
+            return nil
+        }
     }
 
     private static func transformAPIURL(_ api: String) -> URL? {
