@@ -56,13 +56,16 @@ final class ItemStore {
         await runFetch(silent: false)
     }
 
-    func markDone(_ item: Item) async {
-        let snapshot = items
-        items.removeAll { $0.id == item.id }
+    func markRead(_ item: Item) async {
+        guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
+        guard !items[idx].isRead else { return }
+        items[idx].isRead = true
         do {
-            try await github.markDone(item)
+            try await github.markRead(item)
         } catch {
-            items = snapshot
+            if let i = items.firstIndex(where: { $0.id == item.id }) {
+                items[i].isRead = false
+            }
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
@@ -121,7 +124,10 @@ final class ItemStore {
         do {
             let result = try await github.fetch()
             if let newItems = result.items {
-                items = newItems.sorted { $0.updatedAt > $1.updatedAt }
+                let doneIds = Set(items.filter { $0.isRead }.map(\.id))
+                let kept = items.filter { doneIds.contains($0.id) }
+                let fresh = newItems.filter { !doneIds.contains($0.id) }
+                items = (kept + fresh).sorted { $0.updatedAt > $1.updatedAt }
                 Task { await NotificationService.shared.notify(items: items) }
             }
             if !silent { errorMessage = nil }

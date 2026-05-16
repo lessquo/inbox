@@ -23,7 +23,7 @@ struct InboxApp: App {
             MenuBarView()
                 .environment(store)
         } label: {
-            Image(systemName: store.items.isEmpty ? "tray" : "tray.full")
+            Image(systemName: store.items.contains(where: { !$0.isRead }) ? "tray.full" : "tray")
         }
         .menuBarExtraStyle(.window)
     }

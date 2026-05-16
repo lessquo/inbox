@@ -14,7 +14,7 @@ protocol ItemProvider: Sendable {
     var isConfigured: Bool { get }
 
     func fetch() async throws -> FetchResult
-    func markDone(_ item: Item) async throws
+    func markRead(_ item: Item) async throws
 }
 
 enum ProviderError: LocalizedError {

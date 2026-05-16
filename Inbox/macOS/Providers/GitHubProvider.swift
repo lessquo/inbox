@@ -21,7 +21,7 @@ struct GitHubProvider: ItemProvider {
 
     func fetch() async throws -> FetchResult {
         let token = try requireToken()
-        var req = URLRequest(url: URL(string: "https://api.github.com/notifications?all=false")!)
+        var req = URLRequest(url: URL(string: "https://api.github.com/notifications?all=true")!)
         // We track Last-Modified ourselves; bypass URLSession's cache so a server 304
         // surfaces as 304 instead of being silently replayed as a 200 from cache.
         req.cachePolicy = .reloadIgnoringLocalCacheData
@@ -66,7 +66,7 @@ struct GitHubProvider: ItemProvider {
         return FetchResult(items: items, nextPollAfter: nextPoll)
     }
 
-    func markDone(_ item: Item) async throws {
+    func markRead(_ item: Item) async throws {
         let token = try requireToken()
         var req = URLRequest(url: URL(string: "https://api.github.com/notifications/threads/\(item.extId)")!)
         req.httpMethod = "PATCH"

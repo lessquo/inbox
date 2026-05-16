@@ -35,19 +35,15 @@ struct ItemRow: View {
                 }
             }
 
-            Button {
-                Task { await store.markDone(item) }
-            } label: {
-                Image(systemName: "checkmark.circle")
-                    .imageScale(.large)
-            }
-            .buttonStyle(.borderless)
-            .help("Mark as done")
         }
         .padding(.vertical, 4)
+        .opacity(item.isRead ? 0.55 : 1)
         .contentShape(Rectangle())
         .onTapGesture {
             if let url = item.url { NSWorkspace.shared.open(url) }
+            if !item.isRead {
+                Task { await store.markRead(item) }
+            }
         }
     }
 
